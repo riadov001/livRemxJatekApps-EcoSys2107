@@ -19,6 +19,15 @@ export default function OtpScreen() {
   const t = useT();
   const { phone, demoOtp, channel } = useLocalSearchParams<{ phone: string; demoOtp: string; channel: string }>();
   const isWhatsApp = channel === "whatsapp";
+
+  // Guard: if phone param is missing the screen was restored without context
+  // (e.g. Expo Router navigation state persistence after a hot reload).
+  // Redirect to login immediately so the user is never stuck on a blank OTP screen.
+  useEffect(() => {
+    if (!phone) {
+      router.replace("/(auth)/login");
+    }
+  }, [phone]);
   const { login } = useAuth();
   const [digits, setDigits] = useState(["", "", "", "", "", ""]);
   const [error, setError] = useState("");

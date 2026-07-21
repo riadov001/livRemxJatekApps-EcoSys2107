@@ -94,7 +94,7 @@ export default function LoginScreen() {
     sendOtp.mutate({ data: { phone: fullPhone, channel: "whatsapp" } as any }, {
       onSuccess: (res) => {
         if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        router.push({
+        router.replace({
           pathname: "/(auth)/otp",
           params: { phone: fullPhone, demoOtp: (res as any).demoOtp ?? "", channel: "whatsapp" },
         });
