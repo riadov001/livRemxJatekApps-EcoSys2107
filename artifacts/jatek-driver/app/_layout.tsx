@@ -82,6 +82,12 @@ export default function RootLayout() {
     setupNotifications().catch(console.warn);
   }, []);
 
+  // Fallback: always hide splash after 5 s so a slow font load never freezes the app
+  useEffect(() => {
+    const t = setTimeout(() => SplashScreen.hideAsync(), 5_000);
+    return () => clearTimeout(t);
+  }, []);
+
   useEffect(() => {
     if (fontsLoaded || fontError) SplashScreen.hideAsync();
   }, [fontsLoaded, fontError]);

@@ -26,6 +26,7 @@ export class SseClient {
   private intentionallyClosed = false;
   private retry = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private watchdogTimer: ReturnType<typeof setTimeout> | null = null;
 
   // SSE parse state
   private lastIndex = 0;
@@ -65,6 +66,7 @@ export class SseClient {
   disconnect(): void {
     this.intentionallyClosed = true;
     this._clearReconnect();
+    this._clearWatchdog();
     this._abortXhr();
     this.retry = 0;
     this._setStatus("closed");
@@ -80,6 +82,7 @@ export class SseClient {
 
   private _open(): void {
     this._abortXhr();
+    this._resetWatchdog(); // start watchdog; first data must arrive within 60 s
     this.lastIndex = 0;
     this.buffer = "";
     this.currentEvent = "message";
@@ -107,6 +110,7 @@ export class SseClient {
         this._setStatus("open");
       }
 
+      this._resetWatchdog(); // data received — reset the idle watchdog
       this.buffer += chunk;
       this._parseBuffer();
     };
@@ -182,7 +186,24 @@ export class SseClient {
     if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }
   }
 
+  private _resetWatchdog(): void {
+    this._clearWatchdog();
+    // If no data (including server keep-alives) arrives within 60 s, force a reconnect.
+    // The server sends keep-alive comments every 25 s, so 60 s gives two missed beats.
+    this.watchdogTimer = setTimeout(() => {
+      if (!this.intentionallyClosed) {
+        console.warn("[SSE] watchdog timeout — no data for 60 s, reconnecting");
+        this._scheduleReconnect();
+      }
+    }, 60_000);
+  }
+
+  private _clearWatchdog(): void {
+    if (this.watchdogTimer) { clearTimeout(this.watchdogTimer); this.watchdogTimer = null; }
+  }
+
   private _abortXhr(): void {
+    this._clearWatchdog();
     if (this.xhr) {
       try { this.xhr.abort(); } catch {}
       this.xhr = null;
