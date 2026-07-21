@@ -2,6 +2,7 @@
   "expo": {
     "name": "Jatek Driver",
     "slug": "jatek-driver",
+    "owner": "myjantesmob",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -83,7 +84,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": "135003c2-4828-403d-8176-068364215286"
+        "projectId": "4067170a-256c-47b8-91d5-facaff4339b6"
       }
     }
   }

@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,14 +15,13 @@ export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { signIn } = useAuth();
-  const [target, setTarget] = useState<ApiTarget>("local");
+  // Initialise synchronously from cache/IS_PROD_BUILD — no async flash
+  const [target, setTarget] = useState<ApiTarget>(getApiTargetSync);
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => { getApiTarget().then(setTarget); }, []);
 
   const cleanPhone = phone.replace(/\s+/g, "");
   const localValid = cleanPhone.length >= 9;
@@ -80,18 +79,21 @@ export default function LoginScreen() {
         {target === "prod" ? "Connectez-vous avec votre email et mot de passe" : "Connectez-vous pour commencer vos livraisons"}
       </Text>
 
-      <View style={[styles.toggleRow, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-        {(["local", "prod"] as const).map((t) => {
-          const active = target === t;
-          return (
-            <Pressable key={t} onPress={() => onChangeTarget(t)} style={[styles.toggleBtn, { backgroundColor: active ? colors.primary : "transparent" }]}>
-              <Text style={{ color: active ? colors.primaryForeground : colors.mutedForeground, fontFamily: "Inter_600SemiBold", fontSize: 14 }}>
-                {t === "local" ? "Démo (OTP)" : "Production"}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      {/* Hide the env toggle on production builds — drivers must use email/password */}
+      {!IS_PROD_BUILD && (
+        <View style={[styles.toggleRow, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+          {(["local", "prod"] as const).map((t) => {
+            const active = target === t;
+            return (
+              <Pressable key={t} onPress={() => onChangeTarget(t)} style={[styles.toggleBtn, { backgroundColor: active ? colors.primary : "transparent" }]}>
+                <Text style={{ color: active ? colors.primaryForeground : colors.mutedForeground, fontFamily: "Inter_600SemiBold", fontSize: 14 }}>
+                  {t === "local" ? "Démo (OTP)" : "Production"}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
 
       <View style={styles.form}>
         {target === "prod" ? (
