@@ -148,7 +148,9 @@ export function OnlineProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Erreur de connexion";
+      const msg = e && typeof e === "object" && "message" in e
+        ? String((e as { message: unknown }).message)
+        : "Erreur de connexion";
       Alert.alert("Erreur", msg);
     } finally {
       setToggling(false);

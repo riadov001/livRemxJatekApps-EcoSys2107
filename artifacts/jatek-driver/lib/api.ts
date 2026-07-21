@@ -41,6 +41,7 @@ async function request<T>(
       const err: ApiError = { status: res.status, message, data };
       if (res.status === 401) {
         await clearToken();
+        cachedDriverId = null; // invalidate driver ID cache on auth failure
       }
       throw err;
     }
@@ -368,9 +369,22 @@ export async function getMe(): Promise<Me> {
 
 // ─────────────────── Driver profile ───────────────────
 
+/**
+ * Module-level cache for the driver ID. Eliminates a GET /auth/me call on
+ * every location update (every 4 s during active delivery), heartbeat, and
+ * order poll. Cleared on 401 and explicit sign-out via clearDriverIdCache().
+ */
+let cachedDriverId: string | null = null;
+
+export function clearDriverIdCache(): void {
+  cachedDriverId = null;
+}
+
 async function resolveDriverId(): Promise<string> {
+  if (cachedDriverId) return cachedDriverId;
   const me = await getMe();
-  return me.driver?.id ?? me.id;
+  cachedDriverId = me.driver?.id ?? me.id;
+  return cachedDriverId;
 }
 
 export async function submitDriverOnboarding(payload: DriverOnboardingPayload): Promise<DriverProfile> {

@@ -1,7 +1,7 @@
 import { useRouter, useSegments } from "expo-router";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { clearToken, getToken, setToken as persistToken } from "@/lib/auth";
-import { getMe, updatePushToken, type Me } from "@/lib/api";
+import { clearDriverIdCache, getMe, updatePushToken, type Me } from "@/lib/api";
 import { getExpoPushToken } from "@/services/notificationService";
 
 type AuthState = {
@@ -38,7 +38,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(null);
       return me;
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Erreur de connexion";
+      const msg = e && typeof e === "object" && "message" in e
+        ? String((e as { message: unknown }).message)
+        : "Erreur de connexion";
       setError(msg);
       return null;
     }
@@ -77,6 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     await clearToken();
+    clearDriverIdCache(); // prevent stale ID if a different driver logs in
     setTokenState(null);
     setUser(null);
   }, []);

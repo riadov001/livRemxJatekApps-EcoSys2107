@@ -40,7 +40,9 @@ export function ActiveOrderProvider({ children }: { children: React.ReactNode })
       setTrackingActive(true);
       return null;
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Erreur tracking";
+      const msg = e && typeof e === "object" && "message" in e
+        ? String((e as { message: unknown }).message)
+        : "Erreur tracking";
       console.warn("[active-order] start failed", e);
       return msg;
     }
