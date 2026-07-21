@@ -33,8 +33,23 @@ export function OnlineProvider({ children }: { children: React.ReactNode }) {
   const [toggling, setToggling] = useState(false);
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Track whether we've attempted to resume location on this session already
+  const locationResumed = useRef(false);
+
   useEffect(() => {
-    if (user?.driver) setIsOnline(user.driver.isOnline ?? false);
+    if (!user?.driver) return;
+    const online = user.driver.isOnline ?? false;
+    setIsOnline(online);
+
+    // If the driver was already online when the app started (e.g. after a
+    // background kill), restart the foreground location watcher so the REST
+    // PATCH /location keeps flowing — without requiring a manual toggle.
+    if (online && !locationResumed.current) {
+      locationResumed.current = true;
+      startOnlineTracking().catch((e) =>
+        console.warn("[online] auto-resume location failed", e),
+      );
+    }
   }, [user?.driver?.isOnline]);
 
   // ── SSE — connect when online, disconnect when offline ───────────────
@@ -60,18 +75,42 @@ export function OnlineProvider({ children }: { children: React.ReactNode }) {
       }
     })();
 
-    // Invalidate React Query caches when the server pushes updates
-    const off = sse.onEvent((event) => {
+    // Invalidate React Query caches when the server pushes updates.
+    // When the payload carries an orderId we can do a targeted invalidation
+    // instead of blowing out the whole list.
+    const off = sse.onEvent((event, data) => {
+      const payload = data && typeof data === "object" ? data as Record<string, unknown> : null;
+      const orderId = payload?.orderId ?? payload?.order_id ?? payload?.id;
+
       if (
         event === "available_orders" ||
         event === "new_order" ||
-        event === "order_assigned" ||
         event === "message"
       ) {
         queryClient.invalidateQueries({ queryKey: ["available-orders"] });
       }
-      if (event === "driver_orders" || event === "order_status") {
+
+      if (event === "order_assigned") {
+        // Remove the assigned order from the available list immediately
+        queryClient.invalidateQueries({ queryKey: ["available-orders"] });
+        if (orderId) {
+          queryClient.invalidateQueries({ queryKey: ["order", String(orderId)] });
+        }
+      }
+
+      if (event === "driver_orders" || event === "order_status" || event === "order_updated") {
         queryClient.invalidateQueries({ queryKey: ["my-orders"] });
+        if (orderId) {
+          queryClient.invalidateQueries({ queryKey: ["order", String(orderId)] });
+        }
+      }
+
+      if (event === "order_cancelled" || event === "order_delivered") {
+        queryClient.invalidateQueries({ queryKey: ["my-orders"] });
+        queryClient.invalidateQueries({ queryKey: ["earnings"] });
+        if (orderId) {
+          queryClient.invalidateQueries({ queryKey: ["order", String(orderId)] });
+        }
       }
     });
 

@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import React, { useState } from "react";
-import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
@@ -26,7 +26,11 @@ export default function DriverOnboardingScreen() {
   const [licenseNumber, setLicenseNumber] = useState("");
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(
+    user?.driver?.status === "pending" && !!user?.driver?.vehiclePlate,
+  );
 
+  const isRejected = user?.driver?.status === "rejected";
   const valid = fullName.trim().length > 2 && vehiclePlate.trim().length > 2 && cin.trim().length > 3 && licenseNumber.trim().length > 2;
 
   const pickPhoto = async () => {
@@ -55,20 +59,82 @@ export default function DriverOnboardingScreen() {
         photoUrl: photoUri,
       });
       await refresh();
-      Alert.alert("Demande envoyée", "Votre dossier a été soumis. Vous recevrez une notification dès validation.");
+      setSubmitted(true);
     } catch (e) {
-      const msg =
-        e && typeof e === "object" && "message" in e
-          ? String((e as { message: unknown }).message)
-          : e instanceof Error
-            ? e.message
-            : "Erreur inconnue";
+      const msg = e && typeof e === "object" && "message" in e
+        ? String((e as { message: unknown }).message)
+        : "Erreur inconnue";
       Alert.alert("Erreur", msg);
     } finally {
       setSubmitting(false);
     }
   };
 
+  // ── Rejection screen ─────────────────────────────────────────────────
+  if (isRejected) {
+    return (
+      <ScrollView
+        style={{ flex: 1, backgroundColor: colors.background }}
+        contentContainerStyle={[styles.container, { paddingTop: insets.top + 32, alignItems: "center" }]}
+      >
+        <View style={[styles.statusIcon, { backgroundColor: colors.destructive + "15" }]}>
+          <Feather name="x-circle" size={44} color={colors.destructive} />
+        </View>
+        <Text style={[styles.title, { color: colors.foreground, fontFamily: "Inter_700Bold", textAlign: "center" }]}>
+          Dossier refusé
+        </Text>
+        <Text style={[styles.subtitle, { color: colors.mutedForeground, textAlign: "center" }]}>
+          Votre demande a été refusée. Contactez le support Jatek pour plus d'informations ou soumettez un nouveau dossier.
+        </Text>
+        <Pressable
+          onPress={() => setSubmitted(false)}
+          style={[styles.submit, { backgroundColor: colors.primary, borderRadius: colors.radius, width: "100%", marginTop: 24 }]}
+        >
+          <Text style={[styles.submitText, { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }]}>
+            Resoumettre un dossier
+          </Text>
+        </Pressable>
+        <Pressable onPress={signOut} style={{ marginTop: 16 }} hitSlop={12}>
+          <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 14 }]}>
+            Se déconnecter
+          </Text>
+        </Pressable>
+      </ScrollView>
+    );
+  }
+
+  // ── Pending / submitted screen ───────────────────────────────────────
+  if (submitted) {
+    return (
+      <ScrollView
+        style={{ flex: 1, backgroundColor: colors.background }}
+        contentContainerStyle={[styles.container, { paddingTop: insets.top + 32, alignItems: "center" }]}
+      >
+        <View style={[styles.statusIcon, { backgroundColor: colors.success + "15" }]}>
+          <Feather name="clock" size={44} color={colors.success} />
+        </View>
+        <Text style={[styles.title, { color: colors.foreground, fontFamily: "Inter_700Bold", textAlign: "center" }]}>
+          Dossier soumis !
+        </Text>
+        <Text style={[styles.subtitle, { color: colors.mutedForeground, textAlign: "center" }]}>
+          Votre dossier est en cours d'examen. Vous recevrez une notification dès qu'il sera validé.
+        </Text>
+        <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+          <Feather name="info" size={16} color={colors.info} />
+          <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13, flex: 1, lineHeight: 20 }]}>
+            L'examen prend généralement 24 à 48 heures. Revenez plus tard ou attendez notre notification.
+          </Text>
+        </View>
+        <Pressable onPress={signOut} style={{ marginTop: 24 }} hitSlop={12}>
+          <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 14 }]}>
+            Se déconnecter
+          </Text>
+        </Pressable>
+      </ScrollView>
+    );
+  }
+
+  // ── Onboarding form ──────────────────────────────────────────────────
   return (
     <KeyboardAwareScrollView
       contentContainerStyle={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top + 16 }]}
@@ -147,4 +213,6 @@ const styles = StyleSheet.create({
   vehicleLabel: { fontSize: 13 },
   submit: { marginTop: 32, height: 54, alignItems: "center", justifyContent: "center" },
   submitText: { fontSize: 16 },
+  statusIcon: { width: 88, height: 88, borderRadius: 44, alignItems: "center", justifyContent: "center", marginBottom: 20 },
+  infoCard: { flexDirection: "row", alignItems: "flex-start", gap: 10, borderWidth: 1, padding: 14, marginTop: 24, alignSelf: "stretch" },
 });

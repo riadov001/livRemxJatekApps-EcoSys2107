@@ -24,6 +24,11 @@ export function DeliveryMap({ order, style }: Props) {
   const toPickup = HEADING_TO_PICKUP.includes(order.status as OrderStatus);
   const activeTarget = toPickup ? pickup : dropoff;
 
+  // Keep a ref to activeTarget so the location-watcher closure always sees
+  // the latest value without needing to restart the subscription.
+  const activeTargetRef = useRef(activeTarget);
+  useEffect(() => { activeTargetRef.current = activeTarget; }, [activeTarget]);
+
   useEffect(() => {
     let sub: Location.LocationSubscription | null = null;
     (async () => {
@@ -32,13 +37,13 @@ export function DeliveryMap({ order, style }: Props) {
       const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       const pos = { latitude: current.coords.latitude, longitude: current.coords.longitude };
       setDriverPos(pos);
-      fitMap(mapRef, pos, activeTarget);
+      fitMap(mapRef, pos, activeTargetRef.current);
       sub = await Location.watchPositionAsync(
         { accuracy: Location.Accuracy.High, timeInterval: 4000, distanceInterval: 8 },
         (loc) => {
           const next = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
           setDriverPos(next);
-          fitMap(mapRef, next, activeTarget);
+          fitMap(mapRef, next, activeTargetRef.current);
         },
       );
     })();
@@ -47,7 +52,7 @@ export function DeliveryMap({ order, style }: Props) {
 
   useEffect(() => {
     if (driverPos) fitMap(mapRef, driverPos, activeTarget);
-  }, [order.status]);
+  }, [order.status, activeTarget]);
 
   const midLat = (pickup.latitude + dropoff.latitude) / 2;
   const midLng = (pickup.longitude + dropoff.longitude) / 2;

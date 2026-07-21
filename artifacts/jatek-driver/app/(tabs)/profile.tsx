@@ -4,7 +4,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "re
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
-import { type ApiTarget, getApiTarget, setApiTarget } from "@/lib/apiTarget";
+import { IS_PROD_BUILD, type ApiTarget, getApiTarget, setApiTarget } from "@/lib/apiTarget";
 
 export default function ProfileScreen() {
   const colors = useColors();
@@ -69,18 +69,20 @@ export default function ProfileScreen() {
         </Section>
       )}
 
-      <Section title="Connexion" colors={colors}>
-        <View style={[styles.row, { borderBottomColor: colors.border }]}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
-            <Feather name="server" size={16} color={colors.mutedForeground} />
-            <View>
-              <Text style={[styles.rowLabel, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>Mode production</Text>
-              <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 11 }}>ma.jatek.app</Text>
+      {!IS_PROD_BUILD && (
+        <Section title="Connexion" colors={colors}>
+          <View style={[styles.row, { borderBottomColor: colors.border }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+              <Feather name="server" size={16} color={colors.mutedForeground} />
+              <View>
+                <Text style={[styles.rowLabel, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>Mode production</Text>
+                <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 11 }}>ma.jatek.app</Text>
+              </View>
             </View>
+            <Switch value={target === "prod"} onValueChange={onToggleTarget} trackColor={{ false: colors.border, true: colors.primary }} thumbColor="#fff" />
           </View>
-          <Switch value={target === "prod"} onValueChange={onToggleTarget} trackColor={{ false: colors.border, true: colors.primary }} thumbColor="#fff" />
-        </View>
-      </Section>
+        </Section>
+      )}
 
       <Pressable onPress={onSignOut} style={({ pressed }) => [styles.signOutBtn, { backgroundColor: colors.destructive + "15", borderColor: colors.destructive + "30", borderRadius: colors.radius, opacity: pressed ? 0.85 : 1 }]}>
         <Feather name="log-out" size={18} color={colors.destructive} />

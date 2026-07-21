@@ -327,6 +327,7 @@ export default function OrderDetailScreen() {
       <DeliveryCodeModal
         visible={codeModalVisible}
         loading={confirmingDelivery}
+        expectedLength={order?.deliveryCode ? order.deliveryCode.length : undefined}
         onCancel={() => setCodeModalVisible(false)}
         onSubmit={onDeliverConfirm}
       />

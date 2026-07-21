@@ -283,14 +283,17 @@ function mapOrder(o: BackendOrder): Order {
 function mapBackendStatus(s: string): OrderStatus {
   const map: Record<string, OrderStatus> = {
     pending: "pending",
+    assigned: "assigned",
     accepted: "accepted",
     confirmed: "accepted",
     preparing: "accepted",
-    ready: "assigned",
-    picked_up: "picked_up",
+    // "ready" = food is ready at restaurant → driver should be at/heading to restaurant
+    ready: "arrived_pickup",
     driver_at_restaurant: "arrived_pickup",
+    picked_up: "picked_up",
     en_route: "picked_up",
     out_for_delivery: "arrived_dropoff",
+    arrived_dropoff: "arrived_dropoff",
     delivered: "delivered",
     cancelled: "cancelled",
   };
@@ -392,6 +395,8 @@ export async function submitDriverOnboarding(payload: DriverOnboardingPayload): 
   const updated = await request<BackendDriver>(`/drivers/${driverId}/complete-profile`, {
     method: "POST",
     body: JSON.stringify({
+      name: payload.fullName,           // backend field is `name`
+      fullName: payload.fullName,       // also send camelCase in case backend accepts either
       vehicleType: payload.vehicleType,
       vehiclePlate: payload.vehiclePlate,
       nationalId: payload.cin,
@@ -461,13 +466,24 @@ export async function listAvailableOrders(): Promise<Order[]> {
 }
 
 export async function listMyOrders(): Promise<Order[]> {
-  try {
-    const driverId = await resolveDriverId();
-    const list = await request<BackendOrder[]>(`/orders?driverId=${driverId}`);
-    return list.map(mapOrder);
-  } catch {
-    return [];
+  const driverId = await resolveDriverId();
+  // Try dedicated driver endpoint first; fall back to query-param form.
+  const endpoints = [
+    `/drivers/${driverId}/orders`,
+    `/orders?driverId=${driverId}`,
+    `/orders/my-orders`,
+  ];
+  for (const ep of endpoints) {
+    try {
+      const list = await request<BackendOrder[]>(ep);
+      if (Array.isArray(list)) return list.map(mapOrder);
+    } catch (e: unknown) {
+      const status = (e as { status?: number })?.status;
+      // Stop trying on auth failures; continue on 404/405 (wrong endpoint)
+      if (status === 401 || status === 403) return [];
+    }
   }
+  return [];
 }
 
 export async function getOrder(id: string): Promise<Order> {
@@ -505,9 +521,15 @@ export async function markArrivedDropoff(id: string): Promise<Order> {
 }
 
 export async function markDelivered(id: string, deliveryCode: string): Promise<Order> {
+  // Backend may expect the code under different field names; try the most
+  // common variants in a single payload so all are covered.
   const o = await request<BackendOrder>(`/orders/${id}/confirm-delivery`, {
     method: "POST",
-    body: JSON.stringify({ pickupCode: deliveryCode }),
+    body: JSON.stringify({
+      code: deliveryCode,
+      deliveryCode: deliveryCode,
+      pickupCode: deliveryCode,
+    }),
   });
   return mapOrder(o);
 }
@@ -533,7 +555,7 @@ export async function getEarnings(): Promise<EarningsSummary> {
       weekMad: raw.thisWeek ?? 0,
       monthMad: raw.thisMonth ?? 0,
       todayDeliveries: raw.completedToday ?? 0,
-      weekDeliveries: 0,
+      weekDeliveries: raw.totalDeliveries ?? 0,
       todayTipsMad: 0,
       weekTipsMad: 0,
     };

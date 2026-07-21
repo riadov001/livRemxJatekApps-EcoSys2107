@@ -11,17 +11,30 @@ import {
 } from "react-native";
 import { useColors } from "@/hooks/useColors";
 
+// Backend may use 4-digit or 6-digit codes — accept 4–6 digits.
+const CODE_MIN = 4;
+const CODE_MAX = 6;
+
 interface Props {
   visible: boolean;
   loading?: boolean;
+  expectedLength?: number; // optional hint from order data (4 or 6)
   onCancel: () => void;
   onSubmit: (code: string) => void;
 }
 
-export function DeliveryCodeModal({ visible, loading, onCancel, onSubmit }: Props) {
+export function DeliveryCodeModal({ visible, loading, expectedLength, onCancel, onSubmit }: Props) {
   const colors = useColors();
   const [code, setCode] = useState("");
   const inputRef = useRef<TextInput>(null);
+
+  // Determine the exact length to validate against.
+  // If `expectedLength` is provided and in range, use it.
+  // Otherwise accept anything between CODE_MIN and CODE_MAX digits.
+  const exactLen = expectedLength && expectedLength >= CODE_MIN && expectedLength <= CODE_MAX
+    ? expectedLength
+    : null;
+  const isValid = exactLen ? code.length === exactLen : code.length >= CODE_MIN && code.length <= CODE_MAX;
 
   useEffect(() => {
     if (visible) {
@@ -29,6 +42,10 @@ export function DeliveryCodeModal({ visible, loading, onCancel, onSubmit }: Prop
       setTimeout(() => inputRef.current?.focus(), 300);
     }
   }, [visible]);
+
+  const hint = exactLen
+    ? `${exactLen} chiffres`
+    : `${CODE_MIN} à ${CODE_MAX} chiffres`;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
@@ -41,20 +58,20 @@ export function DeliveryCodeModal({ visible, loading, onCancel, onSubmit }: Prop
             Code de livraison
           </Text>
           <Text style={[styles.subtitle, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            Demandez le code à 4 chiffres affiché sur l'application du client.
+            Demandez le code à {hint} affiché sur l'application du client.
           </Text>
           <TextInput
             ref={inputRef}
             value={code}
-            onChangeText={(t) => setCode(t.replace(/\D/g, "").slice(0, 4))}
+            onChangeText={(t) => setCode(t.replace(/\D/g, "").slice(0, CODE_MAX))}
             keyboardType="number-pad"
-            maxLength={4}
-            placeholder="_ _ _ _"
+            maxLength={CODE_MAX}
+            placeholder={exactLen ? "_ ".repeat(exactLen).trim() : "_ _ _ _"}
             placeholderTextColor={colors.mutedForeground}
             style={[styles.input, {
               color: colors.foreground,
               backgroundColor: colors.muted,
-              borderColor: code.length === 4 ? colors.primary : colors.border,
+              borderColor: isValid ? colors.primary : colors.border,
               borderRadius: colors.radius,
               fontFamily: "Inter_700Bold",
             }]}
@@ -68,9 +85,9 @@ export function DeliveryCodeModal({ visible, loading, onCancel, onSubmit }: Prop
             </Pressable>
             <Pressable
               onPress={() => onSubmit(code)}
-              disabled={loading || code.length !== 4}
+              disabled={loading || !isValid}
               style={({ pressed }) => [styles.confirm, {
-                backgroundColor: code.length === 4 ? colors.primary : colors.muted,
+                backgroundColor: isValid ? colors.primary : colors.muted,
                 borderRadius: colors.radius,
                 opacity: pressed ? 0.85 : 1,
               }]}
@@ -78,7 +95,7 @@ export function DeliveryCodeModal({ visible, loading, onCancel, onSubmit }: Prop
               {loading ? (
                 <ActivityIndicator color={colors.primaryForeground} />
               ) : (
-                <Text style={{ color: code.length === 4 ? colors.primaryForeground : colors.mutedForeground, fontFamily: "Inter_700Bold" }}>
+                <Text style={{ color: isValid ? colors.primaryForeground : colors.mutedForeground, fontFamily: "Inter_700Bold" }}>
                   Confirmer
                 </Text>
               )}
