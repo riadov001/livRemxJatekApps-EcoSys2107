@@ -31,7 +31,7 @@ export function IncomingOrderModal({
       qc.invalidateQueries({ queryKey: ["my-orders"] });
       qc.invalidateQueries({ queryKey: ["available-orders"] });
       // Start GPS tracking for the accepted order
-      beginTracking(o.id).catch((msg) => {
+      beginTracking(o.id).then((msg) => {
         if (msg) console.warn("[IncomingOrderModal] beginTracking failed:", msg);
       });
       onClose();

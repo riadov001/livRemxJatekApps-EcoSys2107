@@ -117,7 +117,8 @@ export default function OrderDetailScreen() {
       switch (action?.type) {
         case "accept": {
           const o = await acceptOrder(id);
-          await beginTracking(id);
+          const trackErr = await beginTracking(id);
+          if (trackErr) console.warn("[order] beginTracking failed:", trackErr);
           return o;
         }
         case "arrived-pickup": return markArrivedPickup(id);

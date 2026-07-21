@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { loginWithCredentials, sendOtp } from "@/lib/api";
-import { type ApiTarget, getApiTarget, setApiTarget } from "@/lib/apiTarget";
+import { IS_PROD_BUILD, type ApiTarget, getApiTargetSync, setApiTarget } from "@/lib/apiTarget";
 
 export default function LoginScreen() {
   const colors = useColors();

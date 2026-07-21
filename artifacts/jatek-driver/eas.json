@@ -5,6 +5,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
+        "EXPO_PUBLIC_DOMAIN": "ma.jatek.app",
         "EXPO_PUBLIC_PROJECT_ID": "135003c2-4828-403d-8176-068364215286"
       }
     },

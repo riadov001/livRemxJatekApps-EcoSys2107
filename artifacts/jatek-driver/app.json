@@ -47,7 +47,7 @@
       [
         "expo-router",
         {
-          "origin": "https://replit.com/"
+          "origin": "https://ma.jatek.app/"
         }
       ],
       "expo-font",

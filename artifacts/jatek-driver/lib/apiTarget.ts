@@ -15,7 +15,7 @@ const LOCAL_BASE = DOMAIN ? `https://${DOMAIN}/api` : "/api";
  * means LOCAL_BASE === PROD_BASE.  We still want the app to default to the
  * "prod" auth flow (email + password) rather than the OTP demo flow.
  */
-const IS_PROD_BUILD = DOMAIN === "ma.jatek.app";
+export const IS_PROD_BUILD = DOMAIN === "ma.jatek.app";
 
 const webStore = {
   getItemAsync: async (k: string): Promise<string | null> => {
