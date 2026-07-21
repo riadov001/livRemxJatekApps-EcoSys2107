@@ -33,11 +33,13 @@ minimumReleaseAgeExclude:
   # this setting guards against does not apply to our own packages.
   - '@replit/*'
   - stripe-replit-sync
+  # tar is a transitive dep of @expo/cli that may release frequently;
+  # it is a well-established Node.js core utility with a strong security track record.
+  - tar
 
 packages:
-  - artifacts/*
+  - artifacts/jatek-driver
   - lib/*
-  - lib/integrations/*
   - scripts
 
 catalog:
@@ -74,6 +76,8 @@ onlyBuiltDependencies:
   - unrs-resolver
 
 overrides:
+  # tar 7.5.13 is too new for the Replit package firewall; pin to latest stable
+  "tar": "^7.4.0"
   # replit uses linux-x64 only, we can exclude all other platforms
   "esbuild>@esbuild/darwin-arm64": "-"
   "esbuild>@esbuild/darwin-x64": "-"
