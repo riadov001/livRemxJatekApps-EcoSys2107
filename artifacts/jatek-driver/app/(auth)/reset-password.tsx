@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { resetPassword } from "@/lib/api";
 
@@ -22,6 +23,7 @@ export default function ResetPasswordScreen() {
   const colors = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { signIn } = useAuth();
   const { email, demoOtp } = useLocalSearchParams<{ email: string; demoOtp?: string }>();
 
   const [digits, setDigits] = useState<string[]>(Array(CODE_LENGTH).fill(""));
@@ -72,10 +74,22 @@ export default function ResetPasswordScreen() {
     setLoading(true);
     setError(null);
     try {
-      await resetPassword(email, code, newPassword);
-      router.replace("/");
+      const result = await resetPassword(email, code, newPassword);
+      if (result.token) {
+        const me = await signIn(result.token);
+        if (!me) {
+          setError("Compte non autorisé en tant que chauffeur.");
+        }
+        // useAuthRouting handles navigation once token + user are set
+      } else {
+        router.replace("/(auth)/login");
+      }
     } catch (e: any) {
-      setError(e?.message ?? "Une erreur est survenue.");
+      setError(
+        e && typeof e === "object" && "message" in e
+          ? String(e.message)
+          : "Une erreur est survenue.",
+      );
     } finally {
       setLoading(false);
     }

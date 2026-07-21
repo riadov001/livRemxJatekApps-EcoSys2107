@@ -10,6 +10,13 @@ const PROD_BASE = "https://ma.jatek.app/api";
 const DOMAIN = process.env.EXPO_PUBLIC_DOMAIN;
 const LOCAL_BASE = DOMAIN ? `https://${DOMAIN}/api` : "/api";
 
+/**
+ * In production EAS builds EXPO_PUBLIC_DOMAIN is set to "ma.jatek.app", which
+ * means LOCAL_BASE === PROD_BASE.  We still want the app to default to the
+ * "prod" auth flow (email + password) rather than the OTP demo flow.
+ */
+const IS_PROD_BUILD = DOMAIN === "ma.jatek.app";
+
 const webStore = {
   getItemAsync: async (k: string): Promise<string | null> => {
     if (typeof window === "undefined") return null;
@@ -29,15 +36,19 @@ export async function getApiTarget(): Promise<ApiTarget> {
   if (cached) return cached;
   try {
     const stored = await store.getItemAsync(TARGET_KEY);
-    cached = stored === "prod" ? "prod" : "local";
+    if (stored === "prod" || stored === "local") {
+      cached = stored;
+    } else {
+      cached = IS_PROD_BUILD ? "prod" : "local";
+    }
   } catch {
-    cached = "local";
+    cached = IS_PROD_BUILD ? "prod" : "local";
   }
   return cached;
 }
 
 export function getApiTargetSync(): ApiTarget {
-  return cached ?? "local";
+  return cached ?? (IS_PROD_BUILD ? "prod" : "local");
 }
 
 export async function setApiTarget(target: ApiTarget): Promise<void> {

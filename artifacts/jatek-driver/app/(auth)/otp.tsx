@@ -11,6 +11,12 @@ import { sendOtp, verifyOtp } from "@/lib/api";
 
 const LEN = 6;
 
+function extractMessage(e: unknown, fallback: string): string {
+  if (e && typeof e === "object" && "message" in e) return String((e as { message: unknown }).message);
+  if (e instanceof Error) return e.message;
+  return fallback;
+}
+
 export default function OtpScreen() {
   const colors = useColors();
   const router = useRouter();
@@ -32,8 +38,7 @@ export default function OtpScreen() {
       if (!me) { setError("Ce numéro n'est pas associé à un compte chauffeur."); return; }
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Code invalide";
-      setError(msg);
+      setError(extractMessage(e, "Code invalide"));
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);

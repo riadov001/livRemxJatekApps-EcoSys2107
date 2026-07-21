@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Easing, Modal, Pressable, StyleSheet, Text, Vibration, View } from "react-native";
+import { useActiveOrder } from "@/context/ActiveOrderContext";
 import { useColors } from "@/hooks/useColors";
 import { acceptOrder, type Order } from "@/lib/api";
 
@@ -20,14 +21,19 @@ export function IncomingOrderModal({
   const colors = useColors();
   const router = useRouter();
   const qc = useQueryClient();
+  const { beginTracking } = useActiveOrder();
   const [secondsLeft, setSecondsLeft] = useState(COUNTDOWN_SECONDS);
   const progress = useRef(new Animated.Value(1)).current;
 
   const accept = useMutation({
     mutationFn: (id: string) => acceptOrder(id),
-    onSuccess: (o) => {
+    onSuccess: async (o) => {
       qc.invalidateQueries({ queryKey: ["my-orders"] });
       qc.invalidateQueries({ queryKey: ["available-orders"] });
+      // Start GPS tracking for the accepted order
+      beginTracking(o.id).catch((msg) => {
+        if (msg) console.warn("[IncomingOrderModal] beginTracking failed:", msg);
+      });
       onClose();
       router.push(`/order/${o.id}`);
     },

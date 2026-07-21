@@ -5,6 +5,7 @@ import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { loginWithCredentials, sendOtp } from "@/lib/api";
 import { type ApiTarget, getApiTarget, setApiTarget } from "@/lib/apiTarget";
@@ -13,6 +14,7 @@ export default function LoginScreen() {
   const colors = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { signIn } = useAuth();
   const [target, setTarget] = useState<ApiTarget>("local");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -40,17 +42,20 @@ export default function LoginScreen() {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
       if (target === "prod") {
-        await loginWithCredentials(email.trim(), password);
-        router.replace("/");
+        const { token } = await loginWithCredentials(email.trim(), password);
+        const me = await signIn(token);
+        if (!me) {
+          setError("Ce compte n'est pas autorisé en tant que chauffeur.");
+        }
+        // useAuthRouting handles navigation automatically once token + user are set
       } else {
         await sendOtp(cleanPhone);
         router.push({ pathname: "/(auth)/otp", params: { phone: cleanPhone } });
       }
     } catch (e) {
-      const msg = e && typeof e === "object" && "message" in e ? String((e as { message: unknown }).message) : "Erreur réseau";
-      if (target === "local") {
-        router.push({ pathname: "/(auth)/otp", params: { phone: cleanPhone } });
-      }
+      const msg = e && typeof e === "object" && "message" in e
+        ? String((e as { message: unknown }).message)
+        : "Erreur réseau";
       setError(msg);
     } finally {
       setLoading(false);

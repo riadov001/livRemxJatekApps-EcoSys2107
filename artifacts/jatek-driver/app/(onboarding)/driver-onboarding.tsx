@@ -57,7 +57,12 @@ export default function DriverOnboardingScreen() {
       await refresh();
       Alert.alert("Demande envoyée", "Votre dossier a été soumis. Vous recevrez une notification dès validation.");
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Erreur inconnue";
+      const msg =
+        e && typeof e === "object" && "message" in e
+          ? String((e as { message: unknown }).message)
+          : e instanceof Error
+            ? e.message
+            : "Erreur inconnue";
       Alert.alert("Erreur", msg);
     } finally {
       setSubmitting(false);

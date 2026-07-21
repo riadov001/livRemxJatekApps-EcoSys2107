@@ -1,16 +1,22 @@
 import { Feather } from "@expo/vector-icons";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
-import { type ApiTarget, getApiTargetSync, setApiTarget } from "@/lib/apiTarget";
+import { type ApiTarget, getApiTarget, setApiTarget } from "@/lib/apiTarget";
 
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user, signOut } = useAuth();
-  const [target, setTarget] = useState<ApiTarget>(getApiTargetSync());
+  const [target, setTarget] = useState<ApiTarget>("local");
+
+  // Load the stored target asynchronously to avoid the getApiTargetSync race
+  // where cached is null on first render and defaults incorrectly to "local".
+  useEffect(() => {
+    getApiTarget().then(setTarget);
+  }, []);
 
   const driver = user?.driver;
   const initials = (driver?.fullName ?? user?.fullName ?? "D").split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();

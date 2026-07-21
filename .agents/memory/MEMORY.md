@@ -1,3 +1,5 @@
 - [Jatek API auth pattern](jatek-api-auth.md) — API uses JWT Bearer tokens; no cookie sessions; always send Authorization header in fetch calls.
 - [Jatek notification route order](jatek-notification-routes.md) — PATCH /notifications/read-all must be registered before /notifications/:id/read in Express to avoid route-param capture.
 - [Jatek mobile API base resolution](jatek-mobile-apibase.md) — Always use getApiBaseSafe() from lib/apiBase.ts, never raw process.env.EXPO_PUBLIC_DOMAIN, which is empty in LAN/Expo-Go dev mode.
+- [Driver app auth flow](driver-auth-flow.md) — after any login/reset call, always call AuthContext.signIn(token); never router.replace("/") with stale context state.
+- [Driver app API target](driver-api-target.md) — prod EAS builds set EXPO_PUBLIC_DOMAIN=ma.jatek.app; apiTarget.ts must default to "prod" not "local" in that case, or drivers see OTP demo flow.
