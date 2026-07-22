@@ -173,7 +173,15 @@ export default function OrderDetailScreen() {
 
   const callPhone = (phone: string) => {
     const url = `tel:${phone}`;
-    Linking.canOpenURL(url).then((can) => { if (can) Linking.openURL(url); });
+    Linking.canOpenURL(url).then((can) => {
+      if (can) {
+        Linking.openURL(url);
+      } else {
+        Alert.alert("Appel impossible", "Impossible d'ouvrir le composeur téléphonique sur cet appareil.");
+      }
+    }).catch(() => {
+      Alert.alert("Erreur", "Impossible de passer l'appel.");
+    });
   };
 
   if (isLoading) {

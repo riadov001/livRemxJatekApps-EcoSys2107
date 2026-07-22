@@ -7,19 +7,23 @@ async function request<T>(
   path: string,
   init: RequestInit = {},
   auth = true,
+  timeoutMs = 15_000,
 ): Promise<T> {
   const target = await getApiTarget();
   const base = getBaseUrl(target);
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
     ...((init.headers as Record<string, string>) ?? {}),
   };
+  // Don't override Content-Type when caller sets it (e.g. multipart/form-data)
+  if (!(init.headers as Record<string, string> | undefined)?.["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
   if (auth) {
     const token = await getToken();
     if (token) headers["Authorization"] = `Bearer ${token}`;
   }
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15_000);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(`${base}${path}`, {
       ...init,
@@ -46,8 +50,9 @@ async function request<T>(
       throw err;
     }
     return data as T;
-  } catch (e: any) {
-    if (e?.name === "AbortError") {
+  } catch (e: unknown) {
+    const asAny = e as Record<string, unknown> | null;
+    if (asAny?.name === "AbortError") {
       throw { status: 408, message: "La requête a expiré. Vérifiez votre connexion." } as ApiError;
     }
     throw e;
@@ -179,6 +184,10 @@ type BackendDriver = {
   rating?: number;
   latitude?: number;
   longitude?: number;
+  // Explicit approval status — preferred over profileCompletedAt inference
+  status?: string;           // "pending" | "approved" | "rejected"
+  approvalStatus?: string;
+  isApproved?: boolean;
 };
 
 type BackendOrderItem = {
@@ -206,11 +215,24 @@ type BackendOrder = {
   notes?: string;
   estimatedDeliveryTime?: number;
   pickupCode?: string;
+  deliveryCode?: string;
   isContactless?: boolean;
+  paymentMethod?: string; // "cash" | "card" | "online"
+  paymentType?: string;
+  isPaid?: boolean;
   createdAt: string;
   items?: BackendOrderItem[];
   restaurant?: { phone?: string; address?: string; latitude?: number; longitude?: number };
   user?: { phone?: string; name?: string };
+  // Delivery (dropoff) GPS coords — may come from a joined user address record
+  deliveryLatitude?: number;
+  deliveryLongitude?: number;
+  dropoffLat?: number;
+  dropoffLng?: number;
+  distanceKm?: number;
+  distanceMeters?: number;
+  tip?: number;
+  tipAmount?: number;
 };
 
 type BackendMe = {
@@ -223,6 +245,18 @@ type BackendMe = {
 };
 
 function mapDriver(d: BackendDriver): DriverProfile {
+  // Prefer an explicit status field; fall back to profileCompletedAt inference.
+  let status: DriverStatus = "pending";
+  const rawStatus = (d.status ?? d.approvalStatus ?? "").toLowerCase();
+  if (rawStatus === "approved" || d.isApproved === true) {
+    status = "approved";
+  } else if (rawStatus === "rejected") {
+    status = "rejected";
+  } else if (!rawStatus && d.profileCompletedAt) {
+    // Legacy inference: a completed profile is considered approved.
+    status = "approved";
+  }
+
   return {
     id: String(d.id),
     fullName: d.name ?? "",
@@ -231,7 +265,7 @@ function mapDriver(d: BackendDriver): DriverProfile {
     cin: d.nationalId ?? "",
     licenseNumber: d.licenseNumber ?? "",
     photoUrl: d.photoUrl ?? null,
-    status: d.profileCompletedAt ? "approved" : "pending",
+    status,
     isOnline: d.isAvailable ?? false,
     rating: d.rating ?? null,
     totalDeliveries: d.totalDeliveries ?? 0,
@@ -241,16 +275,40 @@ function mapDriver(d: BackendDriver): DriverProfile {
 function mapOrder(o: BackendOrder): Order {
   const COMMISSION = 0.15;
   const driverEarnings = Math.round(o.total * COMMISSION * 10) / 10;
+
   const items: OrderItem[] = (o.items ?? []).map((i) => ({
     name: i.menuItemName,
     quantity: i.quantity,
     unitPrice: i.unitPrice,
   }));
-  const distanceKm = o.estimatedDeliveryTime
-    ? Math.max(0.5, (o.estimatedDeliveryTime / 60) * 20)
-    : 2.5;
+
+  // Distance: prefer backend-provided value, then derive from ETA at ~25 km/h.
+  let distanceKm: number;
+  if (o.distanceKm && o.distanceKm > 0) {
+    distanceKm = o.distanceKm;
+  } else if (o.distanceMeters && o.distanceMeters > 0) {
+    distanceKm = o.distanceMeters / 1000;
+  } else if (o.estimatedDeliveryTime && o.estimatedDeliveryTime > 0) {
+    distanceKm = Math.max(0.5, (o.estimatedDeliveryTime / 60) * 25);
+  } else {
+    distanceKm = 2.5;
+  }
+
   const restaurantLat = o.restaurant?.latitude ?? 34.6814;
   const restaurantLng = o.restaurant?.longitude ?? -1.9086;
+
+  // Use actual dropoff coordinates when available from the backend.
+  const dropoffLat = o.deliveryLatitude ?? o.dropoffLat ?? (restaurantLat + 0.012);
+  const dropoffLng = o.deliveryLongitude ?? o.dropoffLng ?? (restaurantLng + 0.012);
+
+  // Parse payment method from various backend field names.
+  const rawPayment = (o.paymentMethod ?? o.paymentType ?? "").toLowerCase();
+  let paymentMethod: PaymentMethod = "cash";
+  if (rawPayment.includes("card") || rawPayment.includes("carte")) paymentMethod = "card";
+  else if (rawPayment.includes("online") || rawPayment.includes("en_ligne")) paymentMethod = "online";
+
+  // Tip
+  const tipMad = o.tipAmount ?? o.tip ?? 0;
 
   return {
     id: String(o.id),
@@ -262,17 +320,17 @@ function mapOrder(o: BackendOrder): Order {
     dropoffAddress: o.deliveryAddress,
     pickupLat: restaurantLat,
     pickupLng: restaurantLng,
-    dropoffLat: restaurantLat + 0.01,
-    dropoffLng: restaurantLng + 0.01,
+    dropoffLat,
+    dropoffLng,
     distanceKm: Math.round(distanceKm * 10) / 10,
     etaMinutes: o.estimatedDeliveryTime ?? 20,
     items,
     subtotalMad: o.subtotal,
     priceMad: o.total,
     driverEarningsMad: driverEarnings,
-    tipMad: 0,
-    paymentMethod: "cash",
-    deliveryCode: o.pickupCode ?? "",
+    tipMad,
+    paymentMethod,
+    deliveryCode: o.pickupCode ?? o.deliveryCode ?? "",
     customerName: o.userName,
     customerPhone: o.user?.phone ?? "",
     notes: o.notes ?? null,
@@ -392,18 +450,47 @@ async function resolveDriverId(): Promise<string> {
 
 export async function submitDriverOnboarding(payload: DriverOnboardingPayload): Promise<DriverProfile> {
   const driverId = await resolveDriverId();
-  const updated = await request<BackendDriver>(`/drivers/${driverId}/complete-profile`, {
-    method: "POST",
-    body: JSON.stringify({
-      name: payload.fullName,           // backend field is `name`
-      fullName: payload.fullName,       // also send camelCase in case backend accepts either
+
+  // If a local photo URI is provided, upload via multipart form-data so the
+  // server receives an actual file rather than a local file:// path string.
+  let bodyInit: BodyInit;
+  const hasLocalPhoto = payload.photoUrl?.startsWith("file://") || payload.photoUrl?.startsWith("content://");
+
+  if (hasLocalPhoto && payload.photoUrl) {
+    const form = new FormData();
+    form.append("name", payload.fullName);
+    form.append("fullName", payload.fullName);
+    form.append("vehicleType", payload.vehicleType);
+    form.append("vehiclePlate", payload.vehiclePlate);
+    form.append("nationalId", payload.cin);
+    form.append("licenseNumber", payload.licenseNumber);
+    const filename = payload.photoUrl.split("/").pop() ?? "photo.jpg";
+    form.append("photo", { uri: payload.photoUrl, name: filename, type: "image/jpeg" } as unknown as Blob);
+    bodyInit = form;
+  } else {
+    bodyInit = JSON.stringify({
+      name: payload.fullName,
+      fullName: payload.fullName,
       vehicleType: payload.vehicleType,
       vehiclePlate: payload.vehiclePlate,
       nationalId: payload.cin,
       licenseNumber: payload.licenseNumber,
       photoUrl: payload.photoUrl ?? null,
-    }),
-  });
+    });
+  }
+
+  // Use a longer timeout (60 s) to accommodate image uploads on slow connections.
+  const updated = await request<BackendDriver>(
+    `/drivers/${driverId}/complete-profile`,
+    {
+      method: "POST",
+      body: bodyInit,
+      // Don't set Content-Type for FormData — browser/RN sets it with boundary automatically
+      headers: hasLocalPhoto ? {} : { "Content-Type": "application/json" },
+    },
+    true,
+    60_000,
+  );
   return mapDriver(updated);
 }
 
@@ -461,8 +548,22 @@ export async function updatePushToken(pushToken: string): Promise<{ ok: true }> 
 // ─────────────────── Orders ───────────────────
 
 export async function listAvailableOrders(): Promise<Order[]> {
-  const list = await request<BackendOrder[]>("/orders/available");
-  return list.map(mapOrder);
+  const endpoints = ["/orders/available", "/orders?status=pending", "/orders/pending"];
+  for (const ep of endpoints) {
+    try {
+      const raw = await request<BackendOrder[] | { orders?: BackendOrder[]; data?: BackendOrder[] }>(ep);
+      const list = Array.isArray(raw)
+        ? raw
+        : ((raw as Record<string, unknown>).orders as BackendOrder[] | undefined)
+            ?? ((raw as Record<string, unknown>).data as BackendOrder[] | undefined)
+            ?? [];
+      if (Array.isArray(list)) return list.map(mapOrder);
+    } catch (e: unknown) {
+      const status = (e as { status?: number })?.status;
+      if (status === 401 || status === 403) return [];
+    }
+  }
+  return [];
 }
 
 export async function listMyOrders(): Promise<Order[]> {
@@ -501,11 +602,21 @@ async function patchOrderStatus(id: string, status: string): Promise<Order> {
 
 export async function acceptOrder(id: string): Promise<Order> {
   const driverId = await resolveDriverId();
-  const o = await request<BackendOrder>(`/orders/${id}/accept-delivery`, {
-    method: "POST",
-    body: JSON.stringify({ driverId: Number(driverId) }),
-  });
-  return mapOrder(o);
+  // Backend may return the order directly or nested under order/data key.
+  const raw = await request<BackendOrder | Record<string, unknown>>(
+    `/orders/${id}/accept-delivery`,
+    { method: "POST", body: JSON.stringify({ driverId: Number(driverId) }) },
+  );
+  // Unwrap nested shapes: { order: {...} } | { data: {...} } | BackendOrder directly
+  const unwrapped =
+    (raw as Record<string, unknown>).order ??
+    (raw as Record<string, unknown>).data ??
+    raw;
+  // If the response has no 'id' field at all, fetch the order separately.
+  if (!unwrapped || typeof (unwrapped as Record<string, unknown>).id !== "number") {
+    return getOrder(id);
+  }
+  return mapOrder(unwrapped as BackendOrder);
 }
 
 export async function markArrivedPickup(id: string): Promise<Order> {

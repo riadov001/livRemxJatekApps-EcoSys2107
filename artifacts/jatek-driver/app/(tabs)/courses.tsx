@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useActiveOrder } from "@/context/ActiveOrderContext";
 import { useColors } from "@/hooks/useColors";
 import { listMyOrders, type Order, type OrderStatus } from "@/lib/api";
 
@@ -37,6 +38,7 @@ export default function CoursesScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>("Toutes");
+  const { activeOrderId, trackingActive } = useActiveOrder();
 
   const { data = [], isRefetching, refetch } = useQuery({
     queryKey: ["my-orders"],
@@ -63,6 +65,32 @@ export default function CoursesScreen() {
           );
         })}
       </View>
+
+      {/* Active order quick-access banner */}
+      {trackingActive && activeOrderId && (
+        <Pressable
+          onPress={() => router.push(`/order/${activeOrderId}`)}
+          style={({ pressed }) => [
+            styles.activeBanner,
+            { backgroundColor: colors.primary, opacity: pressed ? 0.9 : 1 },
+          ]}
+        >
+          <View style={styles.activeBannerLeft}>
+            <View style={styles.activePulse}>
+              <View style={[styles.activeDot, { backgroundColor: colors.primaryForeground }]} />
+            </View>
+            <View>
+              <Text style={[styles.activeBannerTitle, { color: colors.primaryForeground, fontFamily: "Inter_700Bold" }]}>
+                Course en cours
+              </Text>
+              <Text style={[styles.activeBannerSub, { color: colors.primaryForeground + "CC", fontFamily: "Inter_400Regular" }]}>
+                Appuyez pour voir le suivi
+              </Text>
+            </View>
+          </View>
+          <Feather name="arrow-right" size={20} color={colors.primaryForeground} />
+        </Pressable>
+      )}
 
       <FlatList
         data={filtered}
@@ -116,6 +144,12 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   filterRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1 },
   filterBtn: { paddingHorizontal: 14, paddingVertical: 8 },
+  activeBanner: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14 },
+  activeBannerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
+  activeBannerTitle: { fontSize: 15 },
+  activeBannerSub: { fontSize: 12, marginTop: 1 },
+  activePulse: { width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
+  activeDot: { width: 10, height: 10, borderRadius: 5 },
   card: { padding: 14, borderWidth: 1, gap: 10 },
   cardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   code: { fontSize: 11, letterSpacing: 0.5 },

@@ -1,10 +1,12 @@
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
+import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -66,10 +68,15 @@ export default function HomeScreen() {
     }
   }, [isOnline]);
 
-  const onRefresh = () => {
+  const onRefresh = useCallback(() => {
     earnings.refetch();
     if (isOnline) available.refetch();
-  };
+  }, [earnings, available, isOnline]);
+
+  const onModalClose = useCallback(() => {
+    if (incoming) dismissedIds.current.add(incoming.id);
+    setIncoming(null);
+  }, [incoming]);
 
   const driverName = user?.fullName ?? user?.driver?.fullName ?? "Chauffeur";
   const firstName = driverName.split(" ")[0];
@@ -105,13 +112,16 @@ export default function HomeScreen() {
             </View>
 
             <Pressable
-              onPress={toggleOnline}
+              onPress={() => {
+                if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                toggleOnline();
+              }}
               disabled={toggling}
               style={({ pressed }) => [
                 styles.onlineCard,
                 {
                   backgroundColor: colors.card,
-                  borderColor: colors.border,
+                  borderColor: isOnline ? colors.primary + "40" : colors.border,
                   borderRadius: colors.radius,
                   opacity: pressed ? 0.9 : 1,
                 },
@@ -206,10 +216,7 @@ export default function HomeScreen() {
       <IncomingOrderModal
         visible={!!incoming}
         order={incoming}
-        onClose={() => {
-          if (incoming) dismissedIds.current.add(incoming.id);
-          setIncoming(null);
-        }}
+        onClose={onModalClose}
       />
     </View>
   );

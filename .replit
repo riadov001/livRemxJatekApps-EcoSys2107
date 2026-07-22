@@ -10,8 +10,8 @@ build = ["bash", "scripts/build-production.sh"]
   args = ["pnpm", "store", "prune"]
   env = { "CI" = "true" }
 
-  [workflows]
-runButton = "Project"
+[workflows]
+runButton = "Jatek Driver"
 
 [[workflows.workflow]]
 name = "Project"

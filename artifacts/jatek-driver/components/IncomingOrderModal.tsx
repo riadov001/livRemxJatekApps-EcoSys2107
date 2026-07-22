@@ -1,8 +1,9 @@
 import { Feather } from "@expo/vector-icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
-import { Animated, Easing, Modal, Pressable, StyleSheet, Text, Vibration, View } from "react-native";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Animated, Easing, Modal, Platform, Pressable, StyleSheet, Text, Vibration, View } from "react-native";
 import { useActiveOrder } from "@/context/ActiveOrderContext";
 import { useColors } from "@/hooks/useColors";
 import { acceptOrder, type Order } from "@/lib/api";
@@ -39,11 +40,20 @@ export function IncomingOrderModal({
     onError: () => onClose(),
   });
 
+  // Keep onClose in a ref so the countdown interval closure always holds the
+  // latest callback — without restarting the effect on every parent re-render
+  // (which would reset the countdown each time).
+  const onCloseRef = useRef(onClose);
+  useLayoutEffect(() => { onCloseRef.current = onClose; });
+
   useEffect(() => {
     if (!visible || !order) return;
     setSecondsLeft(COUNTDOWN_SECONDS);
     progress.setValue(1);
-    Vibration.vibrate(400);
+    if (Platform.OS !== "web") {
+      Vibration.vibrate([0, 300, 100, 300]);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+    }
     Animated.timing(progress, {
       toValue: 0,
       duration: COUNTDOWN_SECONDS * 1000,
@@ -52,12 +62,14 @@ export function IncomingOrderModal({
     }).start();
     const interval = setInterval(() => {
       setSecondsLeft((s) => {
-        if (s <= 1) { clearInterval(interval); onClose(); return 0; }
+        if (s <= 1) { clearInterval(interval); onCloseRef.current(); return 0; }
         return s - 1;
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [visible, order, onClose, progress]);
+    // onClose intentionally excluded — captured via ref to prevent countdown reset
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, order, progress]);
 
   if (!order) return null;
 

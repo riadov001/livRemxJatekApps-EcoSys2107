@@ -3,3 +3,6 @@
 - [Jatek mobile API base resolution](jatek-mobile-apibase.md) — Always use getApiBaseSafe() from lib/apiBase.ts, never raw process.env.EXPO_PUBLIC_DOMAIN, which is empty in LAN/Expo-Go dev mode.
 - [Driver app auth flow](driver-auth-flow.md) — after any login/reset call, always call AuthContext.signIn(token); never router.replace("/") with stale context state.
 - [Driver app API target](driver-api-target.md) — prod EAS builds set EXPO_PUBLIC_DOMAIN=ma.jatek.app; apiTarget.ts must default to "prod" not "local" in that case, or drivers see OTP demo flow.
+- [Jatek driver status mapping](jatek-driver-status.md) — BackendDriver may lack explicit status; mapDriver must prefer status/isApproved fields, fall back to profileCompletedAt inference.
+- [Jatek driver API defensive patterns](jatek-api-defensive.md) — acceptOrder/listAvailableOrders must handle multiple response shapes and fallback endpoints; mapOrder must derive coords/distance/paymentMethod defensively from backend.
+- [Jatek IncomingOrderModal onClose](jatek-modal-onclose.md) — onClose prop must be captured in a ref inside the modal; putting it in useEffect deps resets the countdown on every parent render.
