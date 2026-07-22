@@ -37,14 +37,17 @@ function sendLocation(loc: Location.LocationObject): void {
   }).catch(() => {});
 }
 
-TaskManager.defineTask(LOCATION_TASK, async ({ data, error }) => {
-  if (error) { console.warn("[locationTask] error", error); return; }
-  if (!data) return;
-  const { locations } = data as { locations: Location.LocationObject[] };
-  const last = locations?.[locations.length - 1];
-  if (!last) return;
-  try { sendLocation(last); } catch (e) { console.warn("[locationTask] dispatch failed", e); }
-});
+// Background location task — native only (expo-task-manager has no web support)
+if (Platform.OS !== "web") {
+  TaskManager.defineTask(LOCATION_TASK, async ({ data, error }) => {
+    if (error) { console.warn("[locationTask] error", error); return; }
+    if (!data) return;
+    const { locations } = data as { locations: Location.LocationObject[] };
+    const last = locations?.[locations.length - 1];
+    if (!last) return;
+    try { sendLocation(last); } catch (e) { console.warn("[locationTask] dispatch failed", e); }
+  });
+}
 
 export type LocationPermissionResult = {
   granted: boolean;
